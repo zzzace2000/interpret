@@ -336,6 +336,7 @@ class BaseCoreEBM(BaseEstimator):
         data_n_episodes=2000,
         early_stopping_tolerance=1e-5,
         early_stopping_run_length=50,
+        feature_fit_scheme='round_robin',
         # Native
         feature_step_n_inner_bags=0,
         learning_rate=0.01,
@@ -356,6 +357,7 @@ class BaseCoreEBM(BaseEstimator):
         self.data_n_episodes = data_n_episodes
         self.early_stopping_tolerance = early_stopping_tolerance
         self.early_stopping_run_length = early_stopping_run_length
+        self.feature_fit_scheme = feature_fit_scheme
 
         # Arguments for internal EBM.
         self.feature_step_n_inner_bags = feature_step_n_inner_bags
@@ -567,9 +569,39 @@ class BaseCoreEBM(BaseEstimator):
             if len(attribute_sets) == 0:
                 log.debug("No sets to boost for {0}".format(name))
 
-            for index, attribute_set in enumerate(attribute_sets):
+            if self.feature_fit_scheme == 'round_robin':
+                for index, attribute_set in enumerate(attribute_sets):
+                    curr_metric = native_ebm.training_step(
+                        index,
+                        training_step_episodes=self.training_step_episodes,
+                        learning_rate=self.learning_rate,
+                        max_tree_splits=self.max_tree_splits,
+                        min_cases_for_split=self.min_cases_for_splits,
+                        training_weights=0,
+                        validation_weights=0,
+                    )
+            elif self.feature_fit_scheme == 'best_first':
+                min_gain = np.inf
+                min_index = None
+                for index, attribute_set in enumerate(attribute_sets):
+                    gain = native_ebm.training_peek(
+                        index,
+                        training_step_episodes=self.training_step_episodes,
+                        learning_rate=self.learning_rate,
+                        max_tree_splits=self.max_tree_splits,
+                        min_cases_for_split=self.min_cases_for_splits,
+                        training_weights=0,
+                        validation_weights=0,
+                    )
+
+                    if gain < min_gain:
+                        min_gain = gain
+                        min_index = index
+
+                log.debug("min gain: {0} with feature index {1}".format(min_gain, min_index))
+
                 curr_metric = native_ebm.training_step(
-                    index,
+                    min_index,
                     training_step_episodes=self.training_step_episodes,
                     learning_rate=self.learning_rate,
                     max_tree_splits=self.max_tree_splits,
@@ -577,6 +609,8 @@ class BaseCoreEBM(BaseEstimator):
                     training_weights=0,
                     validation_weights=0,
                 )
+            else:
+                raise RuntimeError("Argument 'feature_fit_scheme' has invalid value")
 
             # NOTE: Out of per-feature boosting on purpose.
             min_metric = min(curr_metric, min_metric)
@@ -611,6 +645,7 @@ class CoreEBMClassifier(BaseCoreEBM, ClassifierMixin):
         data_n_episodes=2000,
         early_stopping_tolerance=1e-5,
         early_stopping_run_length=50,
+        feature_fit_scheme='round_robin',
         # Native
         feature_step_n_inner_bags=0,
         learning_rate=0.01,
@@ -630,6 +665,7 @@ class CoreEBMClassifier(BaseCoreEBM, ClassifierMixin):
             data_n_episodes=data_n_episodes,
             early_stopping_tolerance=early_stopping_tolerance,
             early_stopping_run_length=early_stopping_run_length,
+            feature_fit_scheme=feature_fit_scheme,
             # Native
             feature_step_n_inner_bags=feature_step_n_inner_bags,
             learning_rate=learning_rate,
@@ -662,6 +698,7 @@ class CoreEBMRegressor(BaseCoreEBM, RegressorMixin):
         data_n_episodes=2000,
         early_stopping_tolerance=1e-5,
         early_stopping_run_length=50,
+        feature_fit_scheme='round_robin',
         # Native
         feature_step_n_inner_bags=0,
         learning_rate=0.01,
@@ -681,6 +718,7 @@ class CoreEBMRegressor(BaseCoreEBM, RegressorMixin):
             data_n_episodes=data_n_episodes,
             early_stopping_tolerance=early_stopping_tolerance,
             early_stopping_run_length=early_stopping_run_length,
+            feature_fit_scheme=feature_fit_scheme,
             # Native
             feature_step_n_inner_bags=feature_step_n_inner_bags,
             learning_rate=learning_rate,
@@ -716,6 +754,7 @@ class BaseEBM(BaseEstimator):
         data_n_episodes=2000,
         early_stopping_tolerance=1e-5,
         early_stopping_run_length=50,
+        feature_fit_scheme='round_robin',
         # Native
         feature_step_n_inner_bags=0,
         learning_rate=0.01,
@@ -747,6 +786,7 @@ class BaseEBM(BaseEstimator):
         self.data_n_episodes = data_n_episodes
         self.early_stopping_tolerance = early_stopping_tolerance
         self.early_stopping_run_length = early_stopping_run_length
+        self.feature_fit_scheme = feature_fit_scheme
 
         # Arguments for internal EBM.
         self.feature_step_n_inner_bags = feature_step_n_inner_bags
@@ -799,6 +839,7 @@ class BaseEBM(BaseEstimator):
                 data_n_episodes=self.data_n_episodes,
                 early_stopping_tolerance=self.early_stopping_tolerance,
                 early_stopping_run_length=self.early_stopping_run_length,
+                feature_fit_scheme=self.feature_fit_scheme,
                 # Native
                 feature_step_n_inner_bags=self.feature_step_n_inner_bags,
                 learning_rate=self.learning_rate,
@@ -820,6 +861,7 @@ class BaseEBM(BaseEstimator):
                 data_n_episodes=self.data_n_episodes,
                 early_stopping_tolerance=self.early_stopping_tolerance,
                 early_stopping_run_length=self.early_stopping_run_length,
+                feature_fit_scheme=self.feature_fit_scheme,
                 # Native
                 feature_step_n_inner_bags=self.feature_step_n_inner_bags,
                 learning_rate=self.learning_rate,
@@ -1273,6 +1315,7 @@ class ExplainableBoostingClassifier(BaseEBM, ClassifierMixin, ExplainerMixin):
         data_n_episodes=2000,
         early_stopping_tolerance=1e-5,
         early_stopping_run_length=50,
+        feature_fit_scheme='round_robin',
         # Native
         feature_step_n_inner_bags=0,
         learning_rate=0.01,
@@ -1302,6 +1345,7 @@ class ExplainableBoostingClassifier(BaseEBM, ClassifierMixin, ExplainerMixin):
             data_n_episodes=data_n_episodes,
             early_stopping_tolerance=early_stopping_tolerance,
             early_stopping_run_length=early_stopping_run_length,
+            feature_fit_scheme=feature_fit_scheme,
             # Native
             feature_step_n_inner_bags=feature_step_n_inner_bags,
             learning_rate=learning_rate,
@@ -1353,6 +1397,7 @@ class ExplainableBoostingRegressor(BaseEBM, RegressorMixin, ExplainerMixin):
         data_n_episodes=2000,
         early_stopping_tolerance=1e-5,
         early_stopping_run_length=50,
+        feature_fit_scheme='round_robin',
         # Native
         feature_step_n_inner_bags=0,
         learning_rate=0.01,
@@ -1382,6 +1427,7 @@ class ExplainableBoostingRegressor(BaseEBM, RegressorMixin, ExplainerMixin):
             data_n_episodes=data_n_episodes,
             early_stopping_tolerance=early_stopping_tolerance,
             early_stopping_run_length=early_stopping_run_length,
+            feature_fit_scheme=feature_fit_scheme,
             # Native
             feature_step_n_inner_bags=feature_step_n_inner_bags,
             learning_rate=learning_rate,

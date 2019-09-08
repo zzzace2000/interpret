@@ -538,6 +538,52 @@ class NativeEBM:
         log.info("Fast interaction score end")
         return score.value
 
+    def training_peek(
+        self,
+        attribute_set_index,
+        training_step_episodes=1,
+        learning_rate=0.01,
+        max_tree_splits=2,
+        min_cases_for_split=2,
+        training_weights=0,
+        validation_weights=0,
+    ):
+
+        """ Conducts a training step per feature and peek the split gain.
+            It does not update the model.
+
+        Args:
+            attribute_set_index: The index for the attribute set
+                to train on.
+            training_step_episodes: Number of episodes to train feature step.
+            learning_rate: Learning rate as a float.
+            max_tree_splits: Max tree splits on feature step.
+            min_cases_for_split: Min observations required to split.
+            training_weights: Training weights as float vector.
+            validation_weights: Validation weights as float vector.
+
+        Returns:
+            Validation loss for the training step.
+        """
+        # log.debug("Training step start")
+
+        gain = ct.c_double(0.0)
+        for i in range(training_step_episodes):
+            model_update_tensor_pointer = this.native.lib.GenerateModelFeatureCombinationUpdate(
+                self.model_pointer,
+                attribute_set_index,
+                learning_rate,
+                max_tree_splits,
+                min_cases_for_split,
+                training_weights,
+                validation_weights,
+                ct.byref(gain)
+            )
+            if model_update_tensor_pointer == 0:  # pragma: no cover
+                raise Exception("GenerateModelFeatureCombinationUpdate Exception")
+
+        return gain.value
+
     def training_step(
         self,
         attribute_set_index,
