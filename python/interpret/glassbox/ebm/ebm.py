@@ -242,33 +242,41 @@ class EBMPreprocessor(BaseEstimator, TransformerMixin):
             col_info = schema[list(schema.keys())[col_idx]]
             assert col_info["column_number"] == col_idx
             col_data = X[:, col_idx]
-            if col_info["type"] == "continuous":
-                col_data = col_data.astype(float)
-                bin_edges = self.col_bin_edges_[col_idx].copy()
 
-                digitized = np.digitize(col_data, bin_edges, right=False)
-                digitized[digitized == 0] = 1
-                digitized -= 1
-
-                # NOTE: NA handling done later.
-                # digitized[np.isnan(col_data)] = self.missing_constant
-                X_new[:, col_idx] = digitized
-            elif col_info["type"] == "ordinal":
-                mapping = self.col_mapping_[col_idx]
-                mapping[np.nan] = self.missing_constant
-                vec_map = np.vectorize(
-                    lambda x: mapping[x] if x in mapping else self.unknown_constant
-                )
-                X_new[:, col_idx] = vec_map(col_data)
-            elif col_info["type"] == "categorical":
-                mapping = self.col_mapping_[col_idx]
-                mapping[np.nan] = self.missing_constant
-                vec_map = np.vectorize(
-                    lambda x: mapping[x] if x in mapping else self.unknown_constant
-                )
-                X_new[:, col_idx] = vec_map(col_data)
+            X_new[:, col_idx] = self.transform_one_column(col_info, col_data)
 
         return X_new.astype(np.int64)
+
+    def transform_one_column(self, col_info, col_data):
+        col_idx = col_info["column_number"]
+
+        if col_info["type"] == "continuous":
+            col_data = col_data.astype(float)
+            bin_edges = self.col_bin_edges_[col_idx].copy()
+
+            digitized = np.digitize(col_data, bin_edges, right=False)
+            digitized[digitized == 0] = 1
+            digitized -= 1
+
+            # NOTE: NA handling done later.
+            # digitized[np.isnan(col_data)] = self.missing_constant
+            return digitized
+        elif col_info["type"] == "ordinal":
+            mapping = self.col_mapping_[col_idx]
+            mapping[np.nan] = self.missing_constant
+            vec_map = np.vectorize(
+                lambda x: mapping[x] if x in mapping else self.unknown_constant
+            )
+            return vec_map(col_data)
+        elif col_info["type"] == "categorical":
+            mapping = self.col_mapping_[col_idx]
+            mapping[np.nan] = self.missing_constant
+            vec_map = np.vectorize(
+                lambda x: mapping[x] if x in mapping else self.unknown_constant
+            )
+            return vec_map(col_data)
+
+        return col_data
 
     def get_hist_counts(self, attribute_index):
         col_type = self.col_types_[attribute_index]
